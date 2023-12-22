@@ -1,0 +1,32 @@
+2023-12-19 09:27:44.585  INFO 5344 --- [main] b.v.timetable.TimetableApplicationTests  : Starting TimetableApplicationTests using Java 17.0.9 on DESKTOP-RS2D8GB with PID 5344 (started by Anton in D:\cit\timetable)
+2023-12-19 09:27:44.629  INFO 5344 --- [main] b.v.timetable.TimetableApplicationTests  : No active profile set, falling back to 1 default profile: "default"
+2023-12-19 09:27:47.433  INFO 5344 --- [main] .s.d.r.c.RepositoryConfigurationDelegate : Multiple Spring Data modules found, entering strict repository configuration mode
+2023-12-19 09:27:47.434  INFO 5344 --- [main] .s.d.r.c.RepositoryConfigurationDelegate : Bootstrapping Spring Data JPA repositories in DEFAULT mode.
+2023-12-19 09:27:47.586  INFO 5344 --- [main] .s.d.r.c.RepositoryConfigurationDelegate : Finished Spring Data repository scanning in 135 ms. Found 1 JPA repository interfaces.
+2023-12-19 09:27:48.375  INFO 5344 --- [main] .s.d.r.c.RepositoryConfigurationDelegate : Multiple Spring Data modules found, entering strict repository configuration mode
+2023-12-19 09:27:48.377  INFO 5344 --- [main] .s.d.r.c.RepositoryConfigurationDelegate : Bootstrapping Spring Data JDBC repositories in DEFAULT mode.
+2023-12-19 09:27:48.392  INFO 5344 --- [main] .RepositoryConfigurationExtensionSupport : Spring Data JDBC - Could not safely identify store assignment for repository candidate interface by.vstu.timetable.repo.LessonModelRepository; If you want this repository to be a JDBC repository, consider annotating your entities with one of these annotations: org.springframework.data.relational.core.mapping.Table.
+2023-12-19 09:27:48.393  INFO 5344 --- [main] .s.d.r.c.RepositoryConfigurationDelegate : Finished Spring Data repository scanning in 15 ms. Found 0 JDBC repository interfaces.
+2023-12-19 09:27:49.657  INFO 5344 --- [main] trationDelegate$BeanPostProcessorChecker : Bean 'methodSecurityConfiguration' of type [by.vstu.timetable.configs.security.MethodSecurityConfiguration$$EnhancerBySpringCGLIB$$5ad6aa22] is not eligible for getting processed by all BeanPostProcessors (for example: not eligible for auto-proxying)
+2023-12-19 09:27:50.345  INFO 5344 --- [main] o.hibernate.jpa.internal.util.LogHelper  : HHH000204: Processing PersistenceUnitInfo [name: default]
+2023-12-19 09:27:50.483  INFO 5344 --- [main] org.hibernate.Version                    : HHH000412: Hibernate ORM core version 5.6.15.Final
+2023-12-19 09:27:50.867  INFO 5344 --- [main] o.hibernate.annotations.common.Version   : HCANN000001: Hibernate Commons Annotations {5.1.2.Final}
+2023-12-19 09:27:51.253  INFO 5344 --- [main] com.zaxxer.hikari.HikariDataSource       : HikariPool-1 - Starting...
+2023-12-19 09:27:51.513  INFO 5344 --- [main] com.zaxxer.hikari.HikariDataSource       : HikariPool-1 - Start completed.
+2023-12-19 09:27:51.566  INFO 5344 --- [main] org.hibernate.dialect.Dialect            : HHH000400: Using dialect: org.hibernate.dialect.PostgreSQL10Dialect
+2023-12-19 09:27:51.638  INFO 5344 --- [main] org.hibernate.orm.beans                  : HHH10005002: No explicit CDI BeanManager reference was passed to Hibernate, but CDI is available on the Hibernate ClassLoader.
+2023-12-19 09:27:52.493  INFO 5344 --- [main] o.h.e.t.j.p.i.JtaPlatformInitiator       : HHH000490: Using JtaPlatform implementation: [org.hibernate.engine.transaction.jta.platform.internal.NoJtaPlatform]
+2023-12-19 09:27:52.504  INFO 5344 --- [main] j.LocalContainerEntityManagerFactoryBean : Initialized JPA EntityManagerFactory for persistence unit 'default'
+2023-12-19 09:27:55.716  WARN 5344 --- [main] JpaBaseConfiguration$JpaWebConfiguration : spring.jpa.open-in-view is enabled by default. Therefore, database queries may be performed during view rendering. Explicitly configure spring.jpa.open-in-view to disable this warning
+2023-12-19 09:27:56.572  WARN 5344 --- [main] o.s.s.o.p.t.s.JwtAccessTokenConverter    : Unable to create an RSA verifier from verifierKey (ignoreable if using MAC)
+2023-12-19 09:27:56.681  WARN 5344 --- [main] .s.s.UserDetailsServiceAutoConfiguration : 
+
+Using generated security password: ee07feee-37cc-42a1-825a-ece30e7d0207
+
+This generated password is for development use only. Your security configuration must be updated before running your application in production.
+
+2023-12-19 09:27:57.943  INFO 5344 --- [main] o.s.s.web.DefaultSecurityFilterChain     : Will secure any request with [org.springframework.security.web.session.DisableEncodeUrlFilter@6421d85c, org.springframework.security.web.context.request.async.WebAsyncManagerIntegrationFilter@5eb89000, org.springframework.security.web.context.SecurityContextPersistenceFilter@1cbb394b, org.springframework.security.web.header.HeaderWriterFilter@456beb8b, org.springframework.web.filter.CorsFilter@16b1b213, org.springframework.security.web.authentication.logout.LogoutFilter@331da721, org.springframework.security.oauth2.provider.authentication.OAuth2AuthenticationProcessingFilter@124b8fe9, org.springframework.security.web.savedrequest.RequestCacheAwareFilter@16bbb59c, org.springframework.security.web.servletapi.SecurityContextHolderAwareRequestFilter@78c9c38a, org.springframework.security.web.authentication.AnonymousAuthenticationFilter@77f1026e, org.springframework.security.web.session.SessionManagementFilter@67836d4, org.springframework.security.web.access.ExceptionTranslationFilter@5c7c22ce, org.springframework.security.web.access.intercept.FilterSecurityInterceptor@26f0ab88]
+2023-12-19 09:28:00.221  INFO 5344 --- [main] b.v.timetable.TimetableApplicationTests  : Started TimetableApplicationTests in 16.652 seconds (JVM running for 19.247)
+2023-12-19 09:28:01.611  INFO 5344 --- [SpringApplicationShutdownHook] j.LocalContainerEntityManagerFactoryBean : Closing JPA EntityManagerFactory for persistence unit 'default'
+2023-12-19 09:28:01.617  INFO 5344 --- [SpringApplicationShutdownHook] com.zaxxer.hikari.HikariDataSource       : HikariPool-1 - Shutdown initiated...
+2023-12-19 09:28:01.666  INFO 5344 --- [SpringApplicationShutdownHook] com.zaxxer.hikari.HikariDataSource       : HikariPool-1 - Shutdown completed.
