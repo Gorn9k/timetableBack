@@ -1,26 +1,39 @@
 package by.vstu.timetable.services.common;
 
+import by.vstu.dean.adapters.json.LocalDateTimeJsonAdapter;
+import by.vstu.dean.auth.models.TokenModel;
 import by.vstu.dean.enums.ELessonType;
+import by.vstu.dean.enums.EStatus;
 import by.vstu.dean.future.models.lessons.TeacherModel;
 import by.vstu.dean.future.models.rooms.ClassroomModel;
 import by.vstu.dean.future.models.students.GroupModel;
+import by.vstu.dean.requests.BaseRequest;
 import by.vstu.timetable.dto.LessonDTO;
 import by.vstu.timetable.dto.RoomDTO;
 import by.vstu.timetable.enums.ESubGroup;
 import by.vstu.timetable.enums.EWeekType;
 import by.vstu.timetable.models.LessonModel;
 import by.vstu.timetable.models.StreamModel;
+import by.vstu.timetable.repo.LessonModelRepository;
 import by.vstu.timetable.repo.rest.ClassroomRepo;
 import by.vstu.timetable.repo.rest.GroupsRepo;
 import by.vstu.timetable.services.LessonService;
+import com.google.gson.GsonBuilder;
 import org.apache.poi.ss.usermodel.Cell;
 import org.apache.poi.ss.usermodel.Row;
 import org.apache.poi.ss.usermodel.Sheet;
 import org.apache.poi.ss.usermodel.Workbook;
 import org.apache.poi.ss.util.CellRangeAddress;
 import org.apache.poi.xssf.usermodel.XSSFWorkbook;
+import org.modelmapper.TypeToken;
 import org.springframework.cache.CacheManager;
+import org.springframework.http.HttpEntity;
+import org.springframework.http.HttpHeaders;
+import org.springframework.http.HttpMethod;
+import org.springframework.http.MediaType;
 import org.springframework.stereotype.Service;
+import org.springframework.util.MultiValueMap;
+import org.springframework.web.client.RestTemplate;
 
 import java.io.FileInputStream;
 import java.io.FileNotFoundException;
@@ -30,6 +43,7 @@ import java.time.LocalDateTime;
 import java.util.*;
 import java.util.concurrent.atomic.AtomicLong;
 import java.util.concurrent.atomic.AtomicReference;
+import java.util.stream.Collectors;
 
 @Service
 public class RoomService {
@@ -38,12 +52,14 @@ public class RoomService {
     private final ClassroomRepo classroomRepo;
     private final GroupsRepo groupsRepo;
     private final CacheManager cacheManager;
+    private final LessonModelRepository lessonRepo;
 
-    public RoomService(LessonService lessonService, ClassroomRepo classroomRepo, GroupsRepo groupsRepo, CacheManager cacheManager) {
+    public RoomService(LessonService lessonService, ClassroomRepo classroomRepo, GroupsRepo groupsRepo, CacheManager cacheManager, LessonModelRepository lessonRepo) {
         this.lessonService = lessonService;
         this.classroomRepo = classroomRepo;
         this.groupsRepo = groupsRepo;
         this.cacheManager = cacheManager;
+        this.lessonRepo = lessonRepo;
     }
 
     private List<StreamModel> getStreams() {
@@ -82,15 +98,41 @@ public class RoomService {
     }
 
     public List<RoomDTO> getAll() {
-        System.out.println(LocalDateTime.now().toString() + " [repo] Обращение в БД деканата");
-        System.out.println("[repo] system.property access_token: " + System.getProperty("accessToken"));
-        System.out.println("[repo] system.property expires_at: " + System.getProperty("expires_at"));
-        System.out.println("[repo] expires_at converted: " + LocalDateTime.parse(System.getProperty("expires_at")));
+
+//        BaseRequest<String> request = new BaseRequest<String>("http://192.168.11.252:8888/token?grant_type=password")
+//                .setMediaType(MediaType.APPLICATION_FORM_URLENCODED);
+//        request.setAuthData("DEAN_RSQL", "jBN5qHywPBjh");
+//        request.setAuthHeaders();
+//
+//        String json = request.run(String.format("username=%s&password=%s", "admin@gmail.com", "admin"));
+//
+//        TokenModel tokenModel = new GsonBuilder()
+//                .registerTypeAdapter(LocalDateTime.class, new LocalDateTimeJsonAdapter()).create()
+//                .fromJson(json, new TypeToken<TokenModel>() {
+//                }.getType());
+//
+//        BaseRequest<String> deanRequest = new BaseRequest<String>("http://192.168.11.252:18076/api/classes/rsql?sql=")
+//                .setMediaType(MediaType.APPLICATION_FORM_URLENCODED);
+//        deanRequest.setToken(tokenModel.getAccessToken());
+//        deanRequest.setMethod(HttpMethod.GET);
+//        json = deanRequest.run("");
+////        deanRequest.addHeader(HttpHeaders.AUTHORIZATION, "Bearer " + tokenModel.getAccessToken());
+//        List<ClassroomModel> classrooms = new GsonBuilder()
+//                .registerTypeAdapter(LocalDateTime.class, new LocalDateTimeJsonAdapter()).create()
+//                .fromJson(json, new TypeToken<List<ClassroomModel>>() {
+//                }.getType());
 
         List<RoomDTO> rooms = new ArrayList<>();
         List<LessonDTO> lessonDTOs = lessonService.toDto(lessonService.getAllActive(true));
 
         lessonDTOs.forEach(lessonDTO -> rooms.add(this.convertToDto(lessonDTO, null)));
+
+//        classrooms.stream().distinct().forEach(room -> {
+//            for (int d = 0; d < 7; d++) {
+//                RoomDTO roomDTO = createEmptyRoomDTO(room, (short) d);
+//                rooms.add(roomDTO);
+//            }
+//        });
 
         this.classroomRepo.getAll().stream().distinct().forEach(room -> {
             for (int d = 0; d < 7; d++) {
@@ -99,8 +141,6 @@ public class RoomService {
             }
         });
 
-
-//        return rooms;
         return rooms.stream().sorted(Comparator.comparing(RoomDTO::getRoomNumber).thenComparing(RoomDTO::getDay).thenComparing(RoomDTO::getLessonNumber).thenComparing(RoomDTO::getWeekType)).toList();
     }
 
@@ -283,164 +323,219 @@ public class RoomService {
 
                 for (int j = 1; j <= 7; j++) {
                     int lessonNumber = j;
-                    List<LessonDTO> dayLessons = temp.stream().filter(lessonDTO -> lessonDTO.getLessonNumber() == lessonNumber).sorted(Comparator.comparing(LessonDTO::getSubGroup).reversed()).toList();
+//                    List<LessonDTO> dayLessons = temp.stream().filter(lessonDTO -> lessonDTO.getLessonNumber() == lessonNumber).sorted(Comparator.comparing(LessonDTO::getSubGroup).reversed()).toList();
+                    List<LessonDTO> dayLessons = temp.stream().filter(lessonDTO -> lessonDTO.getLessonNumber() == lessonNumber).sorted(Comparator.comparing(LessonDTO::getWeekType).reversed()).toList();
 
                     if (!dayLessons.isEmpty()) {
 
                         for (LessonDTO lesson : dayLessons) {
 
-                            if (lesson.getWeekType().equals(EWeekType.ALWAYS)) {
-                                switch (lesson.getSubGroup()) {
-                                    case ALL:
-                                        sheet.getRow(rowIndex).getCell(cellIndex - 1).setCellValue(fillClassroomCell(lesson));
-                                        sheet.getRow(rowIndex).getCell(cellIndex).setCellValue(fillDisciplineCell(lesson));
+//                            List<LessonModel> tempList = this.lessonRepo.findByTeacherIdAndDisciplineIdAndGroupIdAndDayAndWeekTypeAndLessonNumberAndLessonTypeAndSubGroupAndStatus(
+//                                    lesson.getTeacher().getId(),
+//                                    lesson.getDiscipline().getId(),
+//                                    lesson.getGroup().getId(),
+//                                    lesson.getDay(),
+//                                    lesson.getWeekType(),
+//                                    lesson.getLessonNumber(),
+//                                    lesson.getLessonType(),
+//                                    lesson.getSubGroup(),
+//                                    EStatus.ACTIVE);
+                            String classrooms;
+                            List<LessonModel> tempList = this.lessonRepo.findByGroupIdAndDayAndWeekTypeAndLessonNumberAndStatus(
+                                    lesson.getGroup().getId(),
+                                    lesson.getDay(),
+                                    lesson.getWeekType(),
+                                    lesson.getLessonNumber(),
+                                    EStatus.ACTIVE).stream().sorted(Comparator.comparing(l -> l.getSubGroup())).toList();
 
-                                        // Объеденить ячейки в дисциплине
-                                        sheet.addMergedRegion(new CellRangeAddress(rowIndex, rowIndex + 1, cellIndex, cellIndex + 1));
-                                        // Объеденить ячейки в аудитории
-                                        sheet.addMergedRegion(new CellRangeAddress(rowIndex, rowIndex + 1, cellIndex - 1, cellIndex - 1));
-                                        break;
-                                    case FIRST:
-                                        sheet.getRow(rowIndex).getCell(cellIndex - 1).setCellValue(fillClassroomCell(lesson));
-                                        sheet.getRow(rowIndex).getCell(cellIndex).setCellValue(fillDisciplineCell(lesson));
-
-                                        sheet.addMergedRegion(new CellRangeAddress(rowIndex, rowIndex + 1, cellIndex, cellIndex));
-                                        break;
-                                    case SECOND:
-                                        sheet.getRow(rowIndex + 1).getCell(cellIndex - 1).setCellValue(fillClassroomCell(lesson));
-                                        sheet.getRow(rowIndex).getCell(cellIndex + 1).setCellValue(fillDisciplineCell(lesson));
-
-                                        sheet.addMergedRegion(new CellRangeAddress(rowIndex, rowIndex + 1, cellIndex + 1, cellIndex + 1));
-                                        break;
-                                    default:
-                                        break;
-                                }
+                            if (tempList.stream().allMatch(l -> l.getWeekType().equals(EWeekType.ALWAYS)) &&
+                                    !tempList.stream().allMatch(l -> l.getSubGroup().equals(lesson.getSubGroup()))
+                            ) {
+                                classrooms = fillClassroomCell(lesson);
+                            } else {
+                                List<LessonDTO> tempLessons = tempList.stream().map(lessonService::toDto).toList();
+                                classrooms = tempLessons.stream().map(lessonDTO -> fillClassroomCell(lessonDTO)).collect(Collectors.joining(", ", "", ""));
                             }
 
-                            if (lesson.getWeekType().equals(EWeekType.NUMERATOR)) {
-                                switch (lesson.getSubGroup()) {
-                                    case ALL:
-                                        sheet.getRow(rowIndex).getCell(cellIndex - 1).setCellValue(fillClassroomCell(lesson));
-                                        sheet.getRow(rowIndex).getCell(cellIndex).setCellValue(fillDisciplineCell(lesson));
+                            try {
 
-                                        sheet.addMergedRegion(new CellRangeAddress(rowIndex, rowIndex, cellIndex, cellIndex + 1));
-                                        break;
-                                    case FIRST:
-                                        sheet.getRow(rowIndex).getCell(cellIndex - 1).setCellValue(fillClassroomCell(lesson));
-                                        sheet.getRow(rowIndex).getCell(cellIndex).setCellValue(fillDisciplineCell(lesson));
-                                        break;
-                                    case SECOND:
-                                        sheet.getRow(rowIndex).getCell(cellIndex - 1).setCellValue(fillClassroomCell(lesson));
-                                        sheet.getRow(rowIndex).getCell(cellIndex + 1).setCellValue(fillDisciplineCell(lesson));
-                                        break;
-                                    default:
-                                        break;
+
+                                if (lesson.getWeekType().equals(EWeekType.ALWAYS)) {
+                                    switch (lesson.getSubGroup()) {
+                                        case ALL:
+                                            sheet.getRow(rowIndex).getCell(cellIndex - 1).setCellValue(classrooms);
+//                                        sheet.getRow(rowIndex).getCell(cellIndex - 1).setCellValue(fillClassroomCell(lesson));
+                                            sheet.getRow(rowIndex).getCell(cellIndex).setCellValue(fillDisciplineCell(lesson));
+
+                                            // Объеденить ячейки в дисциплине
+                                            sheet.addMergedRegion(new CellRangeAddress(rowIndex, rowIndex + 1, cellIndex, cellIndex + 1));
+                                            // Объеденить ячейки в аудитории
+                                            sheet.addMergedRegion(new CellRangeAddress(rowIndex, rowIndex + 1, cellIndex - 1, cellIndex - 1));
+                                            break;
+                                        case FIRST:
+                                            sheet.getRow(rowIndex).getCell(cellIndex - 1).setCellValue(classrooms);
+//                                        sheet.getRow(rowIndex).getCell(cellIndex - 1).setCellValue(fillClassroomCell(lesson));
+                                            sheet.getRow(rowIndex).getCell(cellIndex).setCellValue(fillDisciplineCell(lesson));
+
+                                            sheet.addMergedRegion(new CellRangeAddress(rowIndex, rowIndex + 1, cellIndex, cellIndex));
+                                            break;
+                                        case SECOND:
+                                            sheet.getRow(rowIndex + 1).getCell(cellIndex - 1).setCellValue(classrooms);
+//                                        sheet.getRow(rowIndex + 1).getCell(cellIndex - 1).setCellValue(fillClassroomCell(lesson));
+                                            sheet.getRow(rowIndex).getCell(cellIndex + 1).setCellValue(fillDisciplineCell(lesson));
+
+                                            sheet.addMergedRegion(new CellRangeAddress(rowIndex, rowIndex + 1, cellIndex + 1, cellIndex + 1));
+                                            break;
+                                        default:
+                                            break;
+                                    }
                                 }
-                            }
 
-                            if (lesson.getWeekType().equals(EWeekType.DENOMINATOR)) {
-                                switch (lesson.getSubGroup()) {
-                                    case ALL:
-                                        sheet.getRow(rowIndex + 1).getCell(cellIndex - 1).setCellValue(fillClassroomCell(lesson));
-                                        sheet.getRow(rowIndex + 1).getCell(cellIndex).setCellValue(fillDisciplineCell(lesson));
+                                if (lesson.getWeekType().equals(EWeekType.NUMERATOR)) {
+                                    switch (lesson.getSubGroup()) {
+                                        case ALL:
+                                            sheet.getRow(rowIndex).getCell(cellIndex - 1).setCellValue(classrooms);
+//                                        sheet.getRow(rowIndex).getCell(cellIndex - 1).setCellValue(fillClassroomCell(lesson));
+                                            sheet.getRow(rowIndex).getCell(cellIndex).setCellValue(fillDisciplineCell(lesson));
 
-                                        sheet.addMergedRegion(new CellRangeAddress(rowIndex + 1, rowIndex + 1, cellIndex, cellIndex + 1));
-                                        break;
-                                    case FIRST:
-                                        sheet.getRow(rowIndex + 1).getCell(cellIndex - 1).setCellValue(fillClassroomCell(lesson));
-                                        sheet.getRow(rowIndex + 1).getCell(cellIndex).setCellValue(fillDisciplineCell(lesson));
-                                        break;
-                                    case SECOND:
-                                        sheet.getRow(rowIndex + 1).getCell(cellIndex - 1).setCellValue(fillClassroomCell(lesson));
-                                        sheet.getRow(rowIndex + 1).getCell(cellIndex + 1).setCellValue(fillDisciplineCell(lesson));
-                                        break;
-                                    default:
-                                        break;
+                                            sheet.addMergedRegion(new CellRangeAddress(rowIndex, rowIndex, cellIndex, cellIndex + 1));
+                                            break;
+                                        case FIRST:
+                                            sheet.getRow(rowIndex).getCell(cellIndex - 1).setCellValue(classrooms);
+//                                        sheet.getRow(rowIndex).getCell(cellIndex - 1).setCellValue(fillClassroomCell(lesson));
+                                            sheet.getRow(rowIndex).getCell(cellIndex).setCellValue(fillDisciplineCell(lesson));
+                                            break;
+                                        case SECOND:
+                                            sheet.getRow(rowIndex).getCell(cellIndex - 1).setCellValue(classrooms);
+//                                        sheet.getRow(rowIndex).getCell(cellIndex - 1).setCellValue(fillClassroomCell(lesson));
+                                            sheet.getRow(rowIndex).getCell(cellIndex + 1).setCellValue(fillDisciplineCell(lesson));
+                                            break;
+                                        default:
+                                            break;
+                                    }
                                 }
-                            }
 
-                            if (lesson.getWeekType().equals(EWeekType.FIRST)) {
-                                switch (lesson.getSubGroup()) {
-                                    case ALL:
-                                        sheet.getRow(rowIndex).getCell(cellIndex - 1).setCellValue(fillClassroomCell(lesson));
-                                        sheet.getRow(rowIndex).getCell(cellIndex).setCellValue(fillDisciplineCell(lesson) + "(1н)");
+                                if (lesson.getWeekType().equals(EWeekType.DENOMINATOR)) {
+                                    switch (lesson.getSubGroup()) {
+                                        case ALL:
+                                            sheet.getRow(rowIndex + 1).getCell(cellIndex - 1).setCellValue(classrooms);
+//                                        sheet.getRow(rowIndex + 1).getCell(cellIndex - 1).setCellValue(fillClassroomCell(lesson));
+                                            sheet.getRow(rowIndex + 1).getCell(cellIndex).setCellValue(fillDisciplineCell(lesson));
 
-                                        sheet.addMergedRegion(new CellRangeAddress(rowIndex, rowIndex, cellIndex, cellIndex + 1));
-                                        break;
-                                    case FIRST:
-                                        sheet.getRow(rowIndex).getCell(cellIndex - 1).setCellValue(fillClassroomCell(lesson));
-                                        sheet.getRow(rowIndex).getCell(cellIndex).setCellValue(fillDisciplineCell(lesson) + "(1н)");
-                                        break;
-                                    case SECOND:
-                                        sheet.getRow(rowIndex).getCell(cellIndex - 1).setCellValue(fillClassroomCell(lesson));
-                                        sheet.getRow(rowIndex).getCell(cellIndex + 1).setCellValue(fillDisciplineCell(lesson) + "(1н)");
-                                        break;
-                                    default:
-                                        break;
+                                            sheet.addMergedRegion(new CellRangeAddress(rowIndex + 1, rowIndex + 1, cellIndex, cellIndex + 1));
+                                            break;
+                                        case FIRST:
+                                            sheet.getRow(rowIndex + 1).getCell(cellIndex - 1).setCellValue(classrooms);
+//                                        sheet.getRow(rowIndex + 1).getCell(cellIndex - 1).setCellValue(fillClassroomCell(lesson));
+                                            sheet.getRow(rowIndex + 1).getCell(cellIndex).setCellValue(fillDisciplineCell(lesson));
+                                            break;
+                                        case SECOND:
+                                            sheet.getRow(rowIndex + 1).getCell(cellIndex - 1).setCellValue(classrooms);
+//                                        sheet.getRow(rowIndex + 1).getCell(cellIndex - 1).setCellValue(fillClassroomCell(lesson));
+                                            sheet.getRow(rowIndex + 1).getCell(cellIndex + 1).setCellValue(fillDisciplineCell(lesson));
+                                            break;
+                                        default:
+                                            break;
+                                    }
                                 }
-                            }
 
-                            if (lesson.getWeekType().equals(EWeekType.SECOND)) {
-                                switch (lesson.getSubGroup()) {
-                                    case ALL:
-                                        sheet.getRow(rowIndex + 1).getCell(cellIndex - 1).setCellValue(fillClassroomCell(lesson));
-                                        sheet.getRow(rowIndex + 1).getCell(cellIndex).setCellValue(fillDisciplineCell(lesson) + "(2н)");
+                                if (lesson.getWeekType().equals(EWeekType.FIRST)) {
+                                    switch (lesson.getSubGroup()) {
+                                        case ALL:
+                                            sheet.getRow(rowIndex).getCell(cellIndex - 1).setCellValue(classrooms);
+//                                        sheet.getRow(rowIndex).getCell(cellIndex - 1).setCellValue(fillClassroomCell(lesson));
+                                            sheet.getRow(rowIndex).getCell(cellIndex).setCellValue(fillDisciplineCell(lesson) + "(1н)");
 
-                                        sheet.addMergedRegion(new CellRangeAddress(rowIndex + 1, rowIndex + 1, cellIndex, cellIndex + 1));
-                                        break;
-                                    case FIRST:
-                                        sheet.getRow(rowIndex + 1).getCell(cellIndex - 1).setCellValue(fillClassroomCell(lesson));
-                                        sheet.getRow(rowIndex + 1).getCell(cellIndex).setCellValue(fillDisciplineCell(lesson) + "(2н)");
-                                        break;
-                                    case SECOND:
-                                        sheet.getRow(rowIndex + 1).getCell(cellIndex - 1).setCellValue(fillClassroomCell(lesson));
-                                        sheet.getRow(rowIndex + 1).getCell(cellIndex + 1).setCellValue(fillDisciplineCell(lesson) + "(2н)");
-                                        break;
-                                    default:
-                                        break;
+                                            sheet.addMergedRegion(new CellRangeAddress(rowIndex, rowIndex, cellIndex, cellIndex + 1));
+                                            break;
+                                        case FIRST:
+                                            sheet.getRow(rowIndex).getCell(cellIndex - 1).setCellValue(classrooms);
+//                                        sheet.getRow(rowIndex).getCell(cellIndex - 1).setCellValue(fillClassroomCell(lesson));
+                                            sheet.getRow(rowIndex).getCell(cellIndex).setCellValue(fillDisciplineCell(lesson) + "(1н)");
+                                            break;
+                                        case SECOND:
+                                            sheet.getRow(rowIndex).getCell(cellIndex - 1).setCellValue(classrooms);
+//                                        sheet.getRow(rowIndex).getCell(cellIndex - 1).setCellValue(fillClassroomCell(lesson));
+                                            sheet.getRow(rowIndex).getCell(cellIndex + 1).setCellValue(fillDisciplineCell(lesson) + "(1н)");
+                                            break;
+                                        default:
+                                            break;
+                                    }
                                 }
-                            }
 
-                            if (lesson.getWeekType().equals(EWeekType.THIRD)) {
-                                switch (lesson.getSubGroup()) {
-                                    case ALL:
-                                        sheet.getRow(rowIndex).getCell(cellIndex - 1).setCellValue(fillClassroomCell(lesson));
-                                        sheet.getRow(rowIndex).getCell(cellIndex).setCellValue(fillDisciplineCell(lesson) + "(3н)");
+                                if (lesson.getWeekType().equals(EWeekType.SECOND)) {
+                                    switch (lesson.getSubGroup()) {
+                                        case ALL:
+                                            sheet.getRow(rowIndex + 1).getCell(cellIndex - 1).setCellValue(classrooms);
+//                                        sheet.getRow(rowIndex + 1).getCell(cellIndex - 1).setCellValue(fillClassroomCell(lesson));
+                                            sheet.getRow(rowIndex + 1).getCell(cellIndex).setCellValue(fillDisciplineCell(lesson) + "(2н)");
 
-                                        sheet.addMergedRegion(new CellRangeAddress(rowIndex, rowIndex, cellIndex, cellIndex + 1));
-                                        break;
-                                    case FIRST:
-                                        sheet.getRow(rowIndex).getCell(cellIndex - 1).setCellValue(fillClassroomCell(lesson));
-                                        sheet.getRow(rowIndex).getCell(cellIndex).setCellValue(fillDisciplineCell(lesson) + "(3н)");
-                                        break;
-                                    case SECOND:
-                                        sheet.getRow(rowIndex).getCell(cellIndex - 1).setCellValue(fillClassroomCell(lesson));
-                                        sheet.getRow(rowIndex).getCell(cellIndex + 1).setCellValue(fillDisciplineCell(lesson) + "(3н)");
-                                        break;
-                                    default:
-                                        break;
+                                            sheet.addMergedRegion(new CellRangeAddress(rowIndex + 1, rowIndex + 1, cellIndex, cellIndex + 1));
+                                            break;
+                                        case FIRST:
+                                            sheet.getRow(rowIndex + 1).getCell(cellIndex - 1).setCellValue(classrooms);
+//                                        sheet.getRow(rowIndex + 1).getCell(cellIndex - 1).setCellValue(fillClassroomCell(lesson));
+                                            sheet.getRow(rowIndex + 1).getCell(cellIndex).setCellValue(fillDisciplineCell(lesson) + "(2н)");
+                                            break;
+                                        case SECOND:
+                                            sheet.getRow(rowIndex + 1).getCell(cellIndex - 1).setCellValue(classrooms);
+//                                        sheet.getRow(rowIndex + 1).getCell(cellIndex - 1).setCellValue(fillClassroomCell(lesson));
+                                            sheet.getRow(rowIndex + 1).getCell(cellIndex + 1).setCellValue(fillDisciplineCell(lesson) + "(2н)");
+                                            break;
+                                        default:
+                                            break;
+                                    }
                                 }
-                            }
 
-                            if (lesson.getWeekType().equals(EWeekType.FOURTH)) {
-                                switch (lesson.getSubGroup()) {
-                                    case ALL:
-                                        sheet.getRow(rowIndex + 1).getCell(cellIndex - 1).setCellValue(fillClassroomCell(lesson));
-                                        sheet.getRow(rowIndex + 1).getCell(cellIndex).setCellValue(fillDisciplineCell(lesson) + "(4н)");
+                                if (lesson.getWeekType().equals(EWeekType.THIRD)) {
+                                    switch (lesson.getSubGroup()) {
+                                        case ALL:
+                                            sheet.getRow(rowIndex).getCell(cellIndex - 1).setCellValue(classrooms);
+//                                        sheet.getRow(rowIndex).getCell(cellIndex - 1).setCellValue(fillClassroomCell(lesson));
+                                            sheet.getRow(rowIndex).getCell(cellIndex).setCellValue(fillDisciplineCell(lesson) + "(3н)");
 
-                                        sheet.addMergedRegion(new CellRangeAddress(rowIndex + 1, rowIndex + 1, cellIndex, cellIndex + 1));
-                                        break;
-                                    case FIRST:
-                                        sheet.getRow(rowIndex + 1).getCell(cellIndex - 1).setCellValue(fillClassroomCell(lesson));
-                                        sheet.getRow(rowIndex + 1).getCell(cellIndex).setCellValue(fillDisciplineCell(lesson) + "(4н)");
-                                        break;
-                                    case SECOND:
-                                        sheet.getRow(rowIndex + 1).getCell(cellIndex - 1).setCellValue(fillClassroomCell(lesson));
-                                        sheet.getRow(rowIndex + 1).getCell(cellIndex + 1).setCellValue(fillDisciplineCell(lesson) + "(4н)");
-                                        break;
-                                    default:
-                                        break;
+                                            sheet.addMergedRegion(new CellRangeAddress(rowIndex, rowIndex, cellIndex, cellIndex + 1));
+                                            break;
+                                        case FIRST:
+                                            sheet.getRow(rowIndex).getCell(cellIndex - 1).setCellValue(classrooms);
+//                                        sheet.getRow(rowIndex).getCell(cellIndex - 1).setCellValue(fillClassroomCell(lesson));
+                                            sheet.getRow(rowIndex).getCell(cellIndex).setCellValue(fillDisciplineCell(lesson) + "(3н)");
+                                            break;
+                                        case SECOND:
+                                            sheet.getRow(rowIndex).getCell(cellIndex - 1).setCellValue(classrooms);
+//                                        sheet.getRow(rowIndex).getCell(cellIndex - 1).setCellValue(fillClassroomCell(lesson));
+                                            sheet.getRow(rowIndex).getCell(cellIndex + 1).setCellValue(fillDisciplineCell(lesson) + "(3н)");
+                                            break;
+                                        default:
+                                            break;
+                                    }
                                 }
+
+                                if (lesson.getWeekType().equals(EWeekType.FOURTH)) {
+                                    switch (lesson.getSubGroup()) {
+                                        case ALL:
+                                            sheet.getRow(rowIndex + 1).getCell(cellIndex - 1).setCellValue(classrooms);
+//                                        sheet.getRow(rowIndex + 1).getCell(cellIndex - 1).setCellValue(fillClassroomCell(lesson));
+                                            sheet.getRow(rowIndex + 1).getCell(cellIndex).setCellValue(fillDisciplineCell(lesson) + "(4н)");
+
+                                            sheet.addMergedRegion(new CellRangeAddress(rowIndex + 1, rowIndex + 1, cellIndex, cellIndex + 1));
+                                            break;
+                                        case FIRST:
+                                            sheet.getRow(rowIndex + 1).getCell(cellIndex - 1).setCellValue(classrooms);
+//                                        sheet.getRow(rowIndex + 1).getCell(cellIndex - 1).setCellValue(fillClassroomCell(lesson));
+                                            sheet.getRow(rowIndex + 1).getCell(cellIndex).setCellValue(fillDisciplineCell(lesson) + "(4н)");
+                                            break;
+                                        case SECOND:
+                                            sheet.getRow(rowIndex + 1).getCell(cellIndex - 1).setCellValue(classrooms);
+//                                        sheet.getRow(rowIndex + 1).getCell(cellIndex - 1).setCellValue(fillClassroomCell(lesson));
+                                            sheet.getRow(rowIndex + 1).getCell(cellIndex + 1).setCellValue(fillDisciplineCell(lesson) + "(4н)");
+                                            break;
+                                        default:
+                                            break;
+                                    }
+                                }
+                            } catch (IllegalStateException e) {
+                                continue;
                             }
                         }
 

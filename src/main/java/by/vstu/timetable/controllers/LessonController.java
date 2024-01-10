@@ -58,6 +58,16 @@ public class LessonController extends BaseController<LessonDTO, LessonModel, Les
     }
 
     @RequestMapping(
+            value = {"/entity"},
+            produces = {"application/json"},
+            method = {RequestMethod.GET}
+    )
+    @PreAuthorize("#oauth2.hasScope('read') AND (hasAnyRole('ROLE_USER', 'ROLE_ADMIN'))")
+    public ResponseEntity<List<LessonModel>> getAllEntities() {
+        return new ResponseEntity<>(this.service.getAll(), HttpStatus.OK);
+    }
+
+    @RequestMapping(
             value = {"/content"},
             produces = {"application/json"},
             method = {RequestMethod.GET}
