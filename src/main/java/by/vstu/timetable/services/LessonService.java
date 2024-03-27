@@ -67,10 +67,18 @@ public class LessonService extends BaseService<LessonDTO, LessonModel, LessonMap
         return this.repo.findAllByRoomId(roomId);
     }
 
+    public List<LessonModel> getByGroupDisciplineTeacher(long groupId, long disciplineId, long teacherId) {
+        return this.repo.findByGroupIdAndDisciplineIdAndTeacherIdAndStatus(groupId, disciplineId, teacherId, EStatus.ACTIVE);
+    }
+
+    public List<LessonModel> getByDay(short day) {
+        return this.repo.findByDayAndStatus(day, EStatus.ACTIVE);
+    }
+
     public List<ContentDTO> toContent(LocalDate date) {
         List<ContentDTO> out = new ArrayList<>();
 
-        this.toDto(this.getAll()).stream().filter(p -> p.getDay() == date.getDayOfWeek().getValue()-1).forEach(lessonModel -> {
+        this.toDto(this.getAll()).stream().filter(p -> p.getDay() == date.getDayOfWeek().getValue() - 1).forEach(lessonModel -> {
 
 
             ContentDTO contentDTO = new ContentDTO();
@@ -95,7 +103,8 @@ public class LessonService extends BaseService<LessonDTO, LessonModel, LessonMap
         request.setToken("eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJhdWQiOlsiZGVhbiIsInZzdHUtZWxlY3Ryb25pY2pvdXJuYWwiXSwidXNlcl9uYW1lIjoiYWRtaW5AZ21haWwuY29tIiwic2NvcGUiOlsicmVhZCIsInJzcWwiLCJ3cml0ZSIsImV4cG9ydCJdLCJyb2xlcyI6WyJTVFVERU5UIiwiQURNSU4iLCJVU0VSIiwiUkVDVE9SIl0sImV4cCI6MTY5ODM0MzU5OCwiZmlvIjoi0J_QuNCy0L4g0JwuINCcLiIsImF1dGhvcml0aWVzIjpbIlJPTEVfU1RVREVOVCIsIlJPTEVfQURNSU4iLCJST0xFX1VTRVIiLCJST0xFX1JFQ1RPUiJdLCJqdGkiOiJJa09VOFBjVHU1UVc3QlFpSWdLakVhSS1nSXMiLCJlbWFpbCI6ImFkbWluQGdtYWlsLmNvbSIsImlkX2Zyb21fc291cmNlIjoxNjI4MywiY2xpZW50X2lkIjoiREVBTl9SU1FMIn0.jCldOMRj51hNEq8DBD4v0kS6xdyjpGsALyHU5GwaCFs");
         String json = request.run("");
         Gson gson = (new GsonBuilder()).registerTypeAdapter(LocalDateTime.class, new LocalDateTimeJsonAdapter()).registerTypeAdapter(LocalDateTime.class, new LocalDateTimeTypeAdapter()).create();
-        List<TeacherDepartmentMerge> old = gson.fromJson(json, new TypeToken<List<TeacherDepartmentMerge>>(){}.getType());
+        List<TeacherDepartmentMerge> old = gson.fromJson(json, new TypeToken<List<TeacherDepartmentMerge>>() {
+        }.getType());
 
 
         List<TeacherDepartmentMerge> out = new ArrayList<>();
@@ -103,24 +112,24 @@ public class LessonService extends BaseService<LessonDTO, LessonModel, LessonMap
         this.repo.findAll().forEach(lessonModel -> {
             DisciplineModel disciplineModel = this.disciplinesRepo.getSingle(lessonModel.getDisciplineId());
 
-            if(disciplineModel.getDepartment() == null)
+            if (disciplineModel.getDepartment() == null)
                 System.err.println("Got discipline without department: " + disciplineModel.getId());
 
-            if(disciplineModel.getDepartment() != null
+            if (disciplineModel.getDepartment() != null
                     && old.stream().noneMatch(p -> p.getTeacher().getId().equals(lessonModel.getTeacherId()) && p.getDepartment().getId().equals(disciplineModel.getId()))
                     && out.stream().noneMatch(p -> p.getTeacher().getId().equals(lessonModel.getTeacherId()) && p.getDepartment().getId().equals(disciplineModel.getId()))
             ) {
                 DepartmentModel departmentModel = this.departmentsRepo.getSingle(disciplineModel.getDepartment().getId());
 
-                if(departmentModel == null)
+                if (departmentModel == null)
                     System.err.println("Can't get department for discipline with id = " + disciplineModel.getId());
 
                 TeacherModel teacherModel = this.teacherRepo.getSingle(lessonModel.getTeacherId());
 
-                if(departmentModel == null)
+                if (departmentModel == null)
                     System.err.println("Can't get teacher with id = " + lessonModel.getTeacherId());
 
-                if(departmentModel != null && teacherModel != null) {
+                if (departmentModel != null && teacherModel != null) {
                     TeacherDepartmentMerge teacherDepartmentMerge = new TeacherDepartmentMerge();
                     teacherDepartmentMerge.setTeacher(teacherModel);
                     teacherDepartmentMerge.setDepartment(departmentModel);
@@ -160,26 +169,31 @@ public class LessonService extends BaseService<LessonDTO, LessonModel, LessonMap
             String rawDisciplineModels = this.disciplinesRepo.rawRSQl(String.format("name==\"%s\" and department.id==%s", patternDTO.getDisciplineName().replace("ё", "*").replace("е", "*"), this.convertFromOldDean(patternDTO.getDepartmentId())));
             String rawRooms = this.classroomRepo.rawRSQl(String.format("roomNumber==%s;frame==%s", patternDTO.getLocation(), Long.parseLong(patternDTO.getFrame())));
 
-            List<GroupModel> groups = this.gson.fromJson(rawGroups, new TypeToken<List<GroupModel>>(){}.getType());
-            List<DisciplineModel> disciplineModels = this.gson.fromJson(rawDisciplineModels, new TypeToken<List<DisciplineModel>>(){}.getType());
-            List<TeacherModel> teacherModels = this.gson.fromJson(rawTeacherModels, new TypeToken<List<TeacherModel>>(){}.getType());
-            List<ClassroomModel> rooms = this.gson.fromJson(rawRooms, new TypeToken<List<ClassroomModel>>(){}.getType());
+            List<GroupModel> groups = this.gson.fromJson(rawGroups, new TypeToken<List<GroupModel>>() {
+            }.getType());
+            List<DisciplineModel> disciplineModels = this.gson.fromJson(rawDisciplineModels, new TypeToken<List<DisciplineModel>>() {
+            }.getType());
+            List<TeacherModel> teacherModels = this.gson.fromJson(rawTeacherModels, new TypeToken<List<TeacherModel>>() {
+            }.getType());
+            List<ClassroomModel> rooms = this.gson.fromJson(rawRooms, new TypeToken<List<ClassroomModel>>() {
+            }.getType());
 
-            if(disciplineModels.isEmpty()) {
+            if (disciplineModels.isEmpty()) {
                 rawDisciplineModels = this.disciplinesRepo.rawRSQl(String.format("name==\"%s\"", patternDTO.getDisciplineName().replace(" (экономики)", "").replace("ё", "*").replace("е", "*")));
-                disciplineModels = this.gson.fromJson(rawDisciplineModels, new TypeToken<List<DisciplineModel>>(){}.getType());
+                disciplineModels = this.gson.fromJson(rawDisciplineModels, new TypeToken<List<DisciplineModel>>() {
+                }.getType());
             }
 
-            if(groups.isEmpty())
+            if (groups.isEmpty())
                 throw new RuntimeException("Cannot find any group with name = " + patternDTO.getGroupName());
 
-            if(teacherModels.isEmpty())
+            if (teacherModels.isEmpty())
                 throw new RuntimeException("Cannot find any teacher with name = " + patternDTO.getTeacherFio());
 
-            if(disciplineModels.isEmpty())
+            if (disciplineModels.isEmpty())
                 throw new RuntimeException("Cannot find any discipline with name = " + patternDTO.getDisciplineName());
 
-            if(rooms.isEmpty())
+            if (rooms.isEmpty())
                 throw new RuntimeException("Cannot find any classroom with name = " + patternDTO.getLocation() + " and frame = " + patternDTO.getFrame());
 
             EWeekType weekType = this.convertWeekType(patternDTO.getWeekNumber(), patternDTO.getNumerator());
@@ -208,29 +222,38 @@ public class LessonService extends BaseService<LessonDTO, LessonModel, LessonMap
 
     public LessonModel update(LessonModel old, RoomDTO dto) {
 
-        if(dto.getRoomId() != null)
+        if (dto.getRoomId() != null)
             old.setRoomId(dto.getRoomId());
 
-        if(dto.getTeacherId() != null)
+        if (dto.getDay() != null)
+            old.setDay(dto.getDay());
+
+        if (dto.getTeacherId() != null)
             old.setTeacherId(dto.getTeacherId());
 
-        if(dto.getWeekType() != null)
+        if (dto.getWeekType() != null)
             old.setWeekType(EWeekType.valueOf(dto.getWeekType()));
 
-        //if(dto.getSubGroup() != null)
-        //    old.setSubGroup(ESubGroup.valueOf(dto.getSubGroup()));
-
-        if(dto.getSubGroup() != null)
+        if (dto.getSubGroup() != null)
             old.setSubGroup(dto.getSubGroup());
 
-        if(dto.getLessonNumber() != null)
+        if (dto.getLessonType() != null)
+            old.setLessonType(ELessonType.valueOf(dto.getLessonType()));
+
+        if (dto.getLessonNumber() != null)
             old.setLessonNumber(dto.getLessonNumber());
 
-        if(dto.getGroupId() != null)
+        if (dto.getGroupId() != null)
             old.setGroupId(dto.getGroupId());
 
-        if(dto.getDisciplineId() != null)
+        if (dto.getDisciplineId() != null)
             old.setDisciplineId(dto.getDisciplineId());
+
+        if (dto.getStartDate() != null)
+            old.setStartDate(dto.getStartDate());
+
+        if (dto.getEndDate() != null)
+            old.setEndDate(dto.getEndDate());
 
         old.setUpdated(LocalDateTime.now());
 
@@ -241,13 +264,14 @@ public class LessonService extends BaseService<LessonDTO, LessonModel, LessonMap
 
         LessonModel lessonModel = new LessonModel();
 
-        if(dto.getDay() == null
+        if (dto.getDay() == null
                 || dto.getLessonNumber() == null
                 || dto.getGroupId() == null
                 || dto.getLessonType() == null
                 || dto.getDisciplineId() == null
                 || dto.getTeacherId() == null
                 || dto.getWeekType() == null
+                || dto.getSubGroup() == null
                 || dto.getRoomId() == null
         )
             return null;
@@ -262,14 +286,31 @@ public class LessonService extends BaseService<LessonDTO, LessonModel, LessonMap
         lessonModel.setRoomId(dto.getRoomId());
 
         lessonModel.setWeekType(EWeekType.valueOf(dto.getWeekType()));
-        //lessonModel.setSubGroup(ESubGroup.valueOf(dto.getSubGroup()));
         lessonModel.setSubGroup(dto.getSubGroup());
         lessonModel.setLessonType(ELessonType.valueOf(dto.getLessonType()));
         lessonModel.setLessonNumber(dto.getLessonNumber());
-
         lessonModel.setDay(dto.getDay());
-        lessonModel.setStartDate(dto.getStartDate());
-        lessonModel.setEndDate(dto.getEndDate());
+
+        //FIXME: Уточнить даты семестра
+        if (dto.getStartDate() == null && dto.getEndDate() == null) {
+            int halfYear = LocalDate.now().getMonthValue() < 7 ? 1 : 2;
+            if (halfYear == 1) {
+                lessonModel.setStartDate(LocalDate.of(LocalDate.now().getYear(), 2, 1));
+                lessonModel.setEndDate(LocalDate.of(LocalDate.now().getYear(), 6, 30));
+            } else {
+                lessonModel.setStartDate(LocalDate.of(LocalDate.now().getYear(), 9, 1));
+                lessonModel.setEndDate(LocalDate.of(LocalDate.now().getYear() + 1, 1, 31));
+            }
+        } else if (dto.getStartDate() == null) {
+            lessonModel.setStartDate(dto.getEndDate());
+            lessonModel.setEndDate(dto.getEndDate());
+        } else if (dto.getEndDate() == null) {
+            lessonModel.setStartDate(dto.getStartDate());
+            lessonModel.setEndDate(dto.getStartDate());
+        } else {
+            lessonModel.setStartDate(dto.getStartDate());
+            lessonModel.setEndDate(dto.getEndDate());
+        }
 
         lessonModel.setStatus(EStatus.ACTIVE);
 
@@ -303,7 +344,7 @@ public class LessonService extends BaseService<LessonDTO, LessonModel, LessonMap
             case 35 -> 21L;
             case 999413999 -> 1L;
             default -> throw new IllegalStateException("Unexpected value: " + (int) id);
-        } ;
+        };
     }
 
     private ELessonType convertLessonType(String lessonType) {
@@ -325,10 +366,10 @@ public class LessonService extends BaseService<LessonDTO, LessonModel, LessonMap
     }
 
     private EWeekType convertWeekType(Integer weekType, Boolean numerator) {
-        if(numerator != null)
+        if (numerator != null)
             return numerator ? EWeekType.NUMERATOR : EWeekType.DENOMINATOR;
 
-        if(weekType == null)
+        if (weekType == null)
             return EWeekType.ALWAYS;
 
         return switch (weekType) {

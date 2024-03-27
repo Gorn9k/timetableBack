@@ -5,6 +5,10 @@ HELP.md
 .gz
 *.gz
 *.jar
+/rasSize4.xlsx
+/rasSize5.xlsx
+/rasSize6.xlsx
+/rasSize7.xlsx
 target/
 !.mvn/wrapper/maven-wrapper.jar
 !**/src/main/**/target/
@@ -37,3 +41,4 @@ build/
 
 ### VS Code ###
 .vscode/
+/rasSize8.xlsx

@@ -1,7 +1,6 @@
 package by.vstu.timetable.controllers;
 
 
-import by.vstu.dean.anotations.ApiSecurity;
 import by.vstu.dean.enums.ELessonType;
 import by.vstu.dean.enums.EStatus;
 import by.vstu.timetable.dto.RoomDTO;
@@ -22,6 +21,7 @@ import java.io.IOException;
 import java.io.OutputStream;
 import java.net.URLEncoder;
 import java.text.ParseException;
+import java.time.LocalDate;
 import java.util.List;
 
 @RestController
@@ -46,6 +46,16 @@ public class RoomController {
     }
 
     @RequestMapping(
+            value = {"current"},
+            produces = {"application/json"},
+            method = {RequestMethod.GET}
+    )
+    @PreAuthorize("#oauth2.hasScope('read') AND (hasAnyRole('ROLE_USER', 'ROLE_ADMIN'))")
+    public ResponseEntity<List<RoomDTO>> getAllOnCurrentDate() {
+        return new ResponseEntity<>(this.lessonService.toDto(this.lessonRepo.findByStatusAndDate(EStatus.ACTIVE, LocalDate.now())).stream().map(l -> this.service.convertToDto(l, null)).toList(), HttpStatus.OK);
+    }
+
+    @RequestMapping(
             value = {"getExcel"},
             produces = {"application/xlsx"},
             method = {RequestMethod.GET}
@@ -56,6 +66,28 @@ public class RoomController {
                 URLEncoder.encode("Ras.xlsx", "UTF-8") + "\"");
 
         Workbook workbook = this.service.getExcel(facultyId, course);
+        OutputStream outputStream = response.getOutputStream();
+
+        workbook.getCreationHelper().createFormulaEvaluator().clearAllCachedResultValues();
+        workbook.setForceFormulaRecalculation(true);
+
+        workbook.write(outputStream);
+        workbook.close();
+        outputStream.flush();
+        outputStream.close();
+    }
+
+    @RequestMapping(
+            value = {"citExcel"},
+            produces = {"application/xlsx"},
+            method = {RequestMethod.GET}
+    )
+    @PreAuthorize("#oauth2.hasScope('read') AND (hasAnyRole('ROLE_USER', 'ROLE_ADMIN'))")
+    public void citExcel(HttpServletResponse response) throws IOException, ParseException {
+        response.setHeader("Content-Disposition", "inline;filename=\"" +
+                URLEncoder.encode("Cit.xlsx", "UTF-8") + "\"");
+
+        Workbook workbook = this.service.getExcelForCit();
         OutputStream outputStream = response.getOutputStream();
 
         workbook.getCreationHelper().createFormulaEvaluator().clearAllCachedResultValues();
@@ -90,7 +122,7 @@ public class RoomController {
     @PreAuthorize("#oauth2.hasScope('read') AND (hasAnyRole('ROLE_ADMIN'))")
     public ResponseEntity<?> put(@RequestBody RoomDTO room) {
 
-        if (this.lessonRepo.existsByRoomIdAndTeacherIdAndDisciplineIdAndGroupIdAndSubGroupAndDayAndLessonNumberAndLessonTypeAndWeekTypeAndStatusAndIdNot(
+        if (this.lessonRepo.existsByRoomIdAndTeacherIdAndDisciplineIdAndGroupIdAndSubGroupAndDayAndLessonNumberAndLessonTypeAndWeekTypeAndStatusAndStartDateAndEndDate(
                 room.getRoomId(),
                 room.getTeacherId(),
                 room.getDisciplineId(),
@@ -101,127 +133,9 @@ public class RoomController {
                 ELessonType.valueOf(room.getLessonType()),
                 EWeekType.valueOf(room.getWeekType()),
                 EStatus.ACTIVE,
-                room.getId()))
+                room.getStartDate(),
+                room.getEndDate()))
             return new ResponseEntity<>("Ошибка: Такая запись уже существует.", HttpStatus.CONFLICT);
-
-        // Проверка на конфликты новой пары и уже добаевленные, проходящие в то же время в том же месте,
-        // проверка на конфликт нескольких пар в одно время у одного препода.
-        // P.S. Добавил говна, потому что захотел =))
-
-        // Проверка на поток и пару в нескольких аудиториях
-        if (!this.lessonRepo.existsByRoomIdAndTeacherIdAndWeekTypeAndDayAndLessonNumberAndLessonTypeAndStatusAndIdNot(
-                room.getRoomId(),
-                room.getTeacherId(),
-                EWeekType.valueOf(room.getWeekType()),
-                room.getDay(),
-                room.getLessonNumber(),
-                ELessonType.valueOf(room.getLessonType()),
-                EStatus.ACTIVE,
-                room.getId())
-                && !this.lessonRepo.existsByTeacherIdAndDisciplineIdAndWeekTypeAndDayAndLessonNumberAndLessonTypeAndStatusAndRoomIdNotAndIdNot(
-                room.getTeacherId(),
-                room.getDisciplineId(),
-                EWeekType.valueOf(room.getWeekType()),
-                room.getDay(),
-                room.getLessonNumber(),
-                ELessonType.valueOf(room.getLessonType()),
-                EStatus.ACTIVE,
-                room.getRoomId(),
-                room.getId())
-        ) {
-            switch (EWeekType.valueOf(room.getWeekType())) {
-                case ALWAYS:
-                    if (this.lessonRepo.existsByRoomIdAndLessonNumberAndDayAndStatusAndIdNot(room.getRoomId(), room.getLessonNumber(), room.getDay(), EStatus.ACTIVE, room.getId()))
-                        return new ResponseEntity<>("Конфликт: В аудитории " + room.getRoomNumber() + " уже есть пара на это время.", HttpStatus.CONFLICT);
-
-                    if (this.lessonRepo.existsByTeacherIdAndLessonNumberAndDayAndStatusAndIdNot(room.getTeacherId(), room.getLessonNumber(), room.getDay(), EStatus.ACTIVE, room.getId()))
-                        return new ResponseEntity<>("Конфликт: У преподавателя " + room.getTeacherFullName() + " уже есть пара на это время.", HttpStatus.CONFLICT);
-
-                    break;
-
-                case NUMERATOR:
-                    if (this.lessonRepo.existsByRoomIdAndLessonNumberAndDayAndWeekTypeAndStatusAndIdNot(room.getRoomId(), room.getLessonNumber(), room.getDay(), EWeekType.ALWAYS, EStatus.ACTIVE, room.getId()) ||
-                            this.lessonRepo.existsByRoomIdAndLessonNumberAndDayAndWeekTypeAndStatusAndIdNot(room.getRoomId(), room.getLessonNumber(), room.getDay(), EWeekType.NUMERATOR, EStatus.ACTIVE, room.getId()) ||
-                            this.lessonRepo.existsByRoomIdAndLessonNumberAndDayAndWeekTypeAndStatusAndIdNot(room.getRoomId(), room.getLessonNumber(), room.getDay(), EWeekType.FIRST, EStatus.ACTIVE, room.getId()) ||
-                            this.lessonRepo.existsByRoomIdAndLessonNumberAndDayAndWeekTypeAndStatusAndIdNot(room.getRoomId(), room.getLessonNumber(), room.getDay(), EWeekType.THIRD, EStatus.ACTIVE, room.getId()))
-                        return new ResponseEntity<>("Конфликт: В аудитории " + room.getRoomNumber() + " уже есть пара на это время.", HttpStatus.CONFLICT);
-
-                    if (this.lessonRepo.existsByTeacherIdAndLessonNumberAndDayAndWeekTypeAndStatusAndIdNot(room.getTeacherId(), room.getLessonNumber(), room.getDay(), EWeekType.ALWAYS, EStatus.ACTIVE, room.getId()) ||
-                            this.lessonRepo.existsByTeacherIdAndLessonNumberAndDayAndWeekTypeAndStatusAndIdNot(room.getTeacherId(), room.getLessonNumber(), room.getDay(), EWeekType.NUMERATOR, EStatus.ACTIVE, room.getId()) ||
-                            this.lessonRepo.existsByTeacherIdAndLessonNumberAndDayAndWeekTypeAndStatusAndIdNot(room.getTeacherId(), room.getLessonNumber(), room.getDay(), EWeekType.FIRST, EStatus.ACTIVE, room.getId()) ||
-                            this.lessonRepo.existsByTeacherIdAndLessonNumberAndDayAndWeekTypeAndStatusAndIdNot(room.getTeacherId(), room.getLessonNumber(), room.getDay(), EWeekType.THIRD, EStatus.ACTIVE, room.getId()))
-                        return new ResponseEntity<>("Конфликт: У преподавателя " + room.getTeacherFullName() + " уже есть пара на это время.", HttpStatus.CONFLICT);
-
-                    break;
-
-                case DENOMINATOR:
-                    if (this.lessonRepo.existsByRoomIdAndLessonNumberAndDayAndWeekTypeAndStatusAndIdNot(room.getRoomId(), room.getLessonNumber(), room.getDay(), EWeekType.ALWAYS, EStatus.ACTIVE, room.getId()) ||
-                            this.lessonRepo.existsByRoomIdAndLessonNumberAndDayAndWeekTypeAndStatusAndIdNot(room.getRoomId(), room.getLessonNumber(), room.getDay(), EWeekType.DENOMINATOR, EStatus.ACTIVE, room.getId()) ||
-                            this.lessonRepo.existsByRoomIdAndLessonNumberAndDayAndWeekTypeAndStatusAndIdNot(room.getRoomId(), room.getLessonNumber(), room.getDay(), EWeekType.SECOND, EStatus.ACTIVE, room.getId()) ||
-                            this.lessonRepo.existsByRoomIdAndLessonNumberAndDayAndWeekTypeAndStatusAndIdNot(room.getRoomId(), room.getLessonNumber(), room.getDay(), EWeekType.FOURTH, EStatus.ACTIVE, room.getId()))
-                        return new ResponseEntity<>("Конфликт: В аудитории " + room.getRoomNumber() + " уже есть пара на это время.", HttpStatus.CONFLICT);
-
-                    if (this.lessonRepo.existsByTeacherIdAndLessonNumberAndDayAndWeekTypeAndStatusAndIdNot(room.getTeacherId(), room.getLessonNumber(), room.getDay(), EWeekType.ALWAYS, EStatus.ACTIVE, room.getId()) ||
-                            this.lessonRepo.existsByTeacherIdAndLessonNumberAndDayAndWeekTypeAndStatusAndIdNot(room.getTeacherId(), room.getLessonNumber(), room.getDay(), EWeekType.DENOMINATOR, EStatus.ACTIVE, room.getId()) ||
-                            this.lessonRepo.existsByTeacherIdAndLessonNumberAndDayAndWeekTypeAndStatusAndIdNot(room.getTeacherId(), room.getLessonNumber(), room.getDay(), EWeekType.SECOND, EStatus.ACTIVE, room.getId()) ||
-                            this.lessonRepo.existsByTeacherIdAndLessonNumberAndDayAndWeekTypeAndStatusAndIdNot(room.getTeacherId(), room.getLessonNumber(), room.getDay(), EWeekType.FOURTH, EStatus.ACTIVE, room.getId()))
-                        return new ResponseEntity<>("Конфликт: У преподавателя " + room.getTeacherFullName() + " уже есть пара на это время.", HttpStatus.CONFLICT);
-
-                    break;
-
-                case FIRST:
-                    if (this.lessonRepo.existsByRoomIdAndLessonNumberAndDayAndWeekTypeAndStatusAndIdNot(room.getRoomId(), room.getLessonNumber(), room.getDay(), EWeekType.ALWAYS, EStatus.ACTIVE, room.getId()) ||
-                            this.lessonRepo.existsByRoomIdAndLessonNumberAndDayAndWeekTypeAndStatusAndIdNot(room.getRoomId(), room.getLessonNumber(), room.getDay(), EWeekType.NUMERATOR, EStatus.ACTIVE, room.getId()) ||
-                            this.lessonRepo.existsByRoomIdAndLessonNumberAndDayAndWeekTypeAndStatusAndIdNot(room.getRoomId(), room.getLessonNumber(), room.getDay(), EWeekType.FIRST, EStatus.ACTIVE, room.getId()))
-                        return new ResponseEntity<>("Конфликт: В аудитории " + room.getRoomNumber() + " уже есть пара на это время.", HttpStatus.CONFLICT);
-
-                    if (this.lessonRepo.existsByTeacherIdAndLessonNumberAndDayAndWeekTypeAndStatusAndIdNot(room.getTeacherId(), room.getLessonNumber(), room.getDay(), EWeekType.ALWAYS, EStatus.ACTIVE, room.getId()) ||
-                            this.lessonRepo.existsByTeacherIdAndLessonNumberAndDayAndWeekTypeAndStatusAndIdNot(room.getTeacherId(), room.getLessonNumber(), room.getDay(), EWeekType.NUMERATOR, EStatus.ACTIVE, room.getId()) ||
-                            this.lessonRepo.existsByTeacherIdAndLessonNumberAndDayAndWeekTypeAndStatusAndIdNot(room.getTeacherId(), room.getLessonNumber(), room.getDay(), EWeekType.FIRST, EStatus.ACTIVE, room.getId()))
-                        return new ResponseEntity<>("Конфликт: У преподавателя " + room.getTeacherFullName() + " уже есть пара на это время.", HttpStatus.CONFLICT);
-
-                    break;
-
-                case SECOND:
-                    if (this.lessonRepo.existsByRoomIdAndLessonNumberAndDayAndWeekTypeAndStatusAndIdNot(room.getRoomId(), room.getLessonNumber(), room.getDay(), EWeekType.ALWAYS, EStatus.ACTIVE, room.getId()) ||
-                            this.lessonRepo.existsByRoomIdAndLessonNumberAndDayAndWeekTypeAndStatusAndIdNot(room.getRoomId(), room.getLessonNumber(), room.getDay(), EWeekType.DENOMINATOR, EStatus.ACTIVE, room.getId()) ||
-                            this.lessonRepo.existsByRoomIdAndLessonNumberAndDayAndWeekTypeAndStatusAndIdNot(room.getRoomId(), room.getLessonNumber(), room.getDay(), EWeekType.SECOND, EStatus.ACTIVE, room.getId()))
-                        return new ResponseEntity<>("Конфликт: В аудитории " + room.getRoomNumber() + " уже есть пара на это время.", HttpStatus.CONFLICT);
-
-                    if (this.lessonRepo.existsByTeacherIdAndLessonNumberAndDayAndWeekTypeAndStatusAndIdNot(room.getTeacherId(), room.getLessonNumber(), room.getDay(), EWeekType.ALWAYS, EStatus.ACTIVE, room.getId()) ||
-                            this.lessonRepo.existsByTeacherIdAndLessonNumberAndDayAndWeekTypeAndStatusAndIdNot(room.getTeacherId(), room.getLessonNumber(), room.getDay(), EWeekType.DENOMINATOR, EStatus.ACTIVE, room.getId()) ||
-                            this.lessonRepo.existsByTeacherIdAndLessonNumberAndDayAndWeekTypeAndStatusAndIdNot(room.getTeacherId(), room.getLessonNumber(), room.getDay(), EWeekType.SECOND, EStatus.ACTIVE, room.getId()))
-                        return new ResponseEntity<>("Конфликт: У преподавателя " + room.getTeacherFullName() + " уже есть пара на это время.", HttpStatus.CONFLICT);
-
-                    break;
-
-                case THIRD:
-                    if (this.lessonRepo.existsByRoomIdAndLessonNumberAndDayAndWeekTypeAndStatusAndIdNot(room.getRoomId(), room.getLessonNumber(), room.getDay(), EWeekType.ALWAYS, EStatus.ACTIVE, room.getId()) ||
-                            this.lessonRepo.existsByRoomIdAndLessonNumberAndDayAndWeekTypeAndStatusAndIdNot(room.getRoomId(), room.getLessonNumber(), room.getDay(), EWeekType.NUMERATOR, EStatus.ACTIVE, room.getId()) ||
-                            this.lessonRepo.existsByRoomIdAndLessonNumberAndDayAndWeekTypeAndStatusAndIdNot(room.getRoomId(), room.getLessonNumber(), room.getDay(), EWeekType.THIRD, EStatus.ACTIVE, room.getId()))
-                        return new ResponseEntity<>("Конфликт: В аудитории " + room.getRoomNumber() + " уже есть пара на это время.", HttpStatus.CONFLICT);
-
-                    if (this.lessonRepo.existsByTeacherIdAndLessonNumberAndDayAndWeekTypeAndStatusAndIdNot(room.getTeacherId(), room.getLessonNumber(), room.getDay(), EWeekType.ALWAYS, EStatus.ACTIVE, room.getId()) ||
-                            this.lessonRepo.existsByTeacherIdAndLessonNumberAndDayAndWeekTypeAndStatusAndIdNot(room.getTeacherId(), room.getLessonNumber(), room.getDay(), EWeekType.NUMERATOR, EStatus.ACTIVE, room.getId()) ||
-                            this.lessonRepo.existsByTeacherIdAndLessonNumberAndDayAndWeekTypeAndStatusAndIdNot(room.getTeacherId(), room.getLessonNumber(), room.getDay(), EWeekType.THIRD, EStatus.ACTIVE, room.getId()))
-                        return new ResponseEntity<>("Конфликт: У преподавателя " + room.getTeacherFullName() + " уже есть пара на это время.", HttpStatus.CONFLICT);
-
-                    break;
-
-                case FOURTH:
-                    if (this.lessonRepo.existsByRoomIdAndLessonNumberAndDayAndWeekTypeAndStatusAndIdNot(room.getRoomId(), room.getLessonNumber(), room.getDay(), EWeekType.ALWAYS, EStatus.ACTIVE, room.getId()) ||
-                            this.lessonRepo.existsByRoomIdAndLessonNumberAndDayAndWeekTypeAndStatusAndIdNot(room.getRoomId(), room.getLessonNumber(), room.getDay(), EWeekType.DENOMINATOR, EStatus.ACTIVE, room.getId()) ||
-                            this.lessonRepo.existsByRoomIdAndLessonNumberAndDayAndWeekTypeAndStatusAndIdNot(room.getRoomId(), room.getLessonNumber(), room.getDay(), EWeekType.FOURTH, EStatus.ACTIVE, room.getId()))
-                        return new ResponseEntity<>("Конфликт: В аудитории " + room.getRoomNumber() + " уже есть пара на это время.", HttpStatus.CONFLICT);
-
-                    if (this.lessonRepo.existsByTeacherIdAndLessonNumberAndDayAndWeekTypeAndStatusAndIdNot(room.getTeacherId(), room.getLessonNumber(), room.getDay(), EWeekType.ALWAYS, EStatus.ACTIVE, room.getId()) ||
-                            this.lessonRepo.existsByTeacherIdAndLessonNumberAndDayAndWeekTypeAndStatusAndIdNot(room.getTeacherId(), room.getLessonNumber(), room.getDay(), EWeekType.DENOMINATOR, EStatus.ACTIVE, room.getId()) ||
-                            this.lessonRepo.existsByTeacherIdAndLessonNumberAndDayAndWeekTypeAndStatusAndIdNot(room.getTeacherId(), room.getLessonNumber(), room.getDay(), EWeekType.FOURTH, EStatus.ACTIVE, room.getId()))
-                        return new ResponseEntity<>("Конфликт: У преподавателя " + room.getTeacherFullName() + " уже есть пара на это время.", HttpStatus.CONFLICT);
-
-                    break;
-            }
-        }
 
         LessonModel l = this.service.save(room);
 

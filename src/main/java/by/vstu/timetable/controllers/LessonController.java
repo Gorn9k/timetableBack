@@ -68,6 +68,26 @@ public class LessonController extends BaseController<LessonDTO, LessonModel, Les
     }
 
     @RequestMapping(
+            value = {"/search"},
+            produces = {"application/json"},
+            method = {RequestMethod.GET}
+    )
+    @PreAuthorize("#oauth2.hasScope('read') AND (hasAnyRole('ROLE_USER', 'ROLE_ADMIN'))")
+    public ResponseEntity<List<LessonModel>> getByGroupAndDisciplineAndTeacher(@RequestParam(name = "gId") Long groupId, @RequestParam(name = "dId") Long disciplineId, @RequestParam(name = "tId") Long teacherId) {
+        return new ResponseEntity<>(this.service.getByGroupDisciplineTeacher(groupId, disciplineId, teacherId), HttpStatus.OK);
+    }
+
+    @RequestMapping(
+            value = {"/byDay"},
+            produces = {"application/json"},
+            method = {RequestMethod.GET}
+    )
+    @PreAuthorize("#oauth2.hasScope('read') AND (hasAnyRole('ROLE_USER', 'ROLE_ADMIN'))")
+    public ResponseEntity<List<LessonModel>> getByDay(@RequestParam Short day) {
+        return new ResponseEntity<>(this.service.getByDay(day), HttpStatus.OK);
+    }
+
+    @RequestMapping(
             value = {"/content"},
             produces = {"application/json"},
             method = {RequestMethod.GET}
@@ -88,7 +108,7 @@ public class LessonController extends BaseController<LessonDTO, LessonModel, Les
     }
 
 
-        @RequestMapping(
+    @RequestMapping(
             value = {"/old"},
             produces = {"application/json"},
             method = {RequestMethod.GET}
@@ -100,7 +120,8 @@ public class LessonController extends BaseController<LessonDTO, LessonModel, Les
         request.setMethod(HttpMethod.GET);
         request.setMediaType(MediaType.APPLICATION_JSON);
         String json = request.run("");
-        List<PatternDTO> patternDTOS = gson.fromJson(json, new TypeToken<List<PatternDTO>>(){}.getType());
+        List<PatternDTO> patternDTOS = gson.fromJson(json, new TypeToken<List<PatternDTO>>() {
+        }.getType());
 
         return new ResponseEntity<>(this.service.fromPatterns(patternDTOS), HttpStatus.OK);
     }

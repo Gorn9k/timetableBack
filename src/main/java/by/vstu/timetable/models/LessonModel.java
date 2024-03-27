@@ -19,13 +19,13 @@ import java.time.LocalDate;
 @Getter
 public class LessonModel extends DBBaseModel {
 
-    long groupId;
+    Long groupId;
 
-    long teacherId;
-    long disciplineId;
-    long roomId;
-    short lessonNumber;
-    short day;
+    Long teacherId;
+    Long disciplineId;
+    Long roomId;
+    Short lessonNumber;
+    Short day;
     @Enumerated(EnumType.ORDINAL)
     ELessonType lessonType;
     @Enumerated(EnumType.ORDINAL)
