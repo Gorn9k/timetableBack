@@ -9,12 +9,10 @@ public class DateTimeTest {
 
     public static void main(String[] args) {
 
-        System.out.println(LocalDateTime.now().toString());
-        System.out.println("2023-10-12T15:48:20.758998");
+        LocalDate dateStart = LocalDate.of(2024, 9, 1);
+        LocalDate dateFrom = LocalDate.of(2024, 10, 5);
 
-        System.out.println(LocalDateTime.parse(LocalDateTime.now().toString()));
-        System.out.println(LocalDateTime.parse("2023-10-12T15:48:20"));
-        System.out.println(Instant.parse("2023-10-12T15:48:20"));
+        System.out.println(dateFrom.minusYears(dateStart.getYear()).minusMonths(dateStart.getMonthValue()));
 
     }
 }

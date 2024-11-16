@@ -1,32 +1,20 @@
 package by.vstu.timetable;
 
-import by.vstu.dean.future.models.students.GroupModel;
-import by.vstu.timetable.enums.ESubGroup;
-import by.vstu.timetable.models.StreamModel;
-import by.vstu.timetable.repo.rest.DisciplinesRepo;
-import by.vstu.timetable.repo.rest.GroupsRepo;
-import by.vstu.timetable.repo.rest.TeacherRepo;
-import by.vstu.timetable.services.LessonService;
-import org.junit.jupiter.api.Assertions;
-import org.junit.jupiter.api.Test;
-import org.springframework.beans.factory.annotation.Autowired;
-import org.springframework.boot.test.context.SpringBootTest;
 
-import java.time.LocalDate;
-import java.util.*;
-import java.util.stream.Collectors;
+import org.junit.jupiter.api.Test;
+import org.springframework.boot.test.context.SpringBootTest;
 
 @SpringBootTest
 class TimetableApplicationTests {
 
-    @Autowired
-    private TeacherRepo teacherRepo;
-    @Autowired
-    private LessonService lessonService;
-    @Autowired
-    private GroupsRepo groupsRepo;
-    @Autowired
-    private DisciplinesRepo disciplinesRepo;
+//    @Autowired
+//    private TeacherRepo teacherRepo;
+//    @Autowired
+//    private LessonService lessonService;
+//    @Autowired
+//    private GroupsRepo groupsRepo;
+//    @Autowired
+//    private DisciplinesRepo disciplinesRepo;
 
     @Test
     void contextLoads() {
